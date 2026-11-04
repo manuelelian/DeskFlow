@@ -8,7 +8,7 @@ use app\models\UserModel;
 use app\models\CategoriasModel;
 use app\models\TicketsModel;
 use app\models\MensajesModel;
-
+use app\models\HistorialTicketsModel;
 
 class AdminController extends Controller
 {
@@ -48,8 +48,8 @@ class AdminController extends Controller
         static::path();
         // 1. Instanciamos el modelo de usuarios
         $userModel = new UserModel();
-        // 2. Traemos todos los usuarios para que el admin vea también los inactivos
-        $usuarios = $userModel->listarTodosLosUsuarios();
+        // 2. Traemos solo a Clientes (1) y Agentes (2) para la gestión
+        $usuarios = $userModel->listarClientesYAgentes();
         // 3. Empaquetamos los datos para la vista
         $parametros_de_vista = [
             "head"     => SiteController::head(),

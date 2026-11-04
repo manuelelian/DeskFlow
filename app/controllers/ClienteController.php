@@ -7,6 +7,7 @@ use \Response;
 use app\models\TicketsModel;
 use app\models\CategoriasModel;
 use app\models\MensajesModel;
+use app\models\HistorialTicketsModel;
 
 class ClienteController extends Controller
 {
@@ -185,5 +186,53 @@ class ClienteController extends Controller
         ];
 
         Response::render($this->viewDir(__NAMESPACE__), 'ver', $parametros_de_vista);
+    }
+
+    public function actionResolverTicket()
+    {
+        static::path();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id_ticket = $_POST['id_ticket'] ?? null;
+            $mensaje_resolucion = trim($_POST['mensaje_resolucion'] ?? '');
+            $id_cliente = $_SESSION['USER']['id_usuario'];
+
+            if ($id_ticket && !empty($mensaje_resolucion)) {
+                $ticketsModel = new TicketsModel();
+                $ticket = $ticketsModel->obtenerPorId($id_ticket);
+
+                // Validamos que el ticket exista, sea del cliente y no esté cerrado (RN04 y RN03)
+                if ($ticket && $ticket->id_cliente == $id_cliente && $ticket->estado !== 'Cerrado') {
+                    
+                    // 1. Guardamos el motivo como mensaje final en el chat
+                    $mensajesModel = new MensajesModel();
+                    $mensajesModel->insertarMensaje([
+                        'id_ticket'  => $id_ticket,
+                        'id_usuario' => $id_cliente,
+                        'contenido'  => "✅ TICKET RESUELTO POR EL CLIENTE:\n" . $mensaje_resolucion
+                    ]);
+
+                    // 2. Cerramos el ticket
+                    $ticketsModel->actualizarEstado($id_ticket, 'Cerrado');
+
+                    // 3. Disparamos el registro en el historial
+                    $historialModel = new HistorialTicketsModel();
+                    $historialModel->registrarAccion([
+                        'id_ticket'  => $id_ticket,
+                        'id_usuario' => $id_cliente,
+                        'accion'     => 'Cierre por Cliente',
+                        'detalle'    => 'El cliente marcó el ticket como resuelto y dejó un mensaje de cierre.'
+                    ]);
+
+                    // Redirigimos al detalle para ver el ticket cerrado
+                    header("Location: " . self::$path . "cliente/ver/" . $id_ticket);
+                    exit;
+                }
+            }
+        }
+        
+        // Si hay error o acceso inválido, redirigimos al dashboard del cliente
+        header("Location: " . self::$path . "cliente");
+        exit;
     }
 }

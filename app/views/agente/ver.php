@@ -54,13 +54,19 @@
                 <i class="fa-solid fa-arrow-left me-1"></i>Volver a mi Bandeja
             </a>
 
-            <!-- Si el ticket NO está cerrado, el botón abre el Modal de Confirmación -->
+            <!-- Si el ticket NO está cerrado, el botón abre el Modal de Confirmación de Cierre -->
             <?php if ($ticket->estado !== 'Cerrado'): ?>
                 <button type="button" class="btn btn-danger btn-sm fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCerrarTicket">
                     <i class="fa-solid fa-check-circle me-1"></i>Resolver y Cerrar Ticket
                 </button>
             <?php else: ?>
-                <span class="badge bg-secondary px-3 py-2 fs-6">Ticket Cerrado (Solo Lectura)</span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary px-3 py-2 fs-6">Ticket Cerrado (Solo Lectura)</span>
+                    <!-- Botón para Reabrir Ticket Cerrado -->
+                    <button type="button" class="btn btn-warning btn-sm fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalReabrirTicket">
+                        <i class="fa-solid fa-rotate-left me-1"></i>Reabrir Ticket
+                    </button>
+                </div>
             <?php endif; ?>
         </div>
 
@@ -77,9 +83,22 @@
             </div>
         <?php endif; ?>
 
+        <?php if (isset($_GET['cambio']) && $_GET['cambio'] === 'prioridad'): ?>
+            <div class="alert alert-info shadow-sm border-0 rounded-3 mb-4" role="alert">
+                <i class="fa-solid fa-flag me-2"></i>La prioridad del ticket fue actualizada correctamente.
+            </div>
+        <?php endif; ?>
+
+        <?php if (isset($_GET['cambio']) && $_GET['cambio'] === 'reabierto'): ?>
+            <div class="alert alert-warning shadow-sm border-0 rounded-3 mb-4" role="alert">
+                <i class="fa-solid fa-rotate-left me-2"></i>El ticket ha sido reabierto y vuelve a estar <strong>En Proceso</strong>.
+            </div>
+        <?php endif; ?>
+
         <div class="row g-4">
-            <!-- Columna Izquierda: Detalles del Ticket -->
+            <!-- Columna Izquierda: Detalles del Ticket y Gestión Operativa -->
             <div class="col-lg-4">
+                <!-- Tarjeta 1: Información del Caso -->
                 <div class="card border-0 shadow-sm rounded-4 mb-4">
                     <div class="card-body p-4">
                         <h5 class="fw-bold text-dark mb-3">Información del Caso</h5>
@@ -96,7 +115,11 @@
 
                         <div class="mb-2 d-flex justify-content-between align-items-center">
                             <span class="text-muted small">Estado Actual:</span>
-                            <span class="badge bg-warning text-dark"><?= htmlspecialchars($ticket->estado) ?></span>
+                            <?php if ($ticket->estado === 'Cerrado'): ?>
+                                <span class="badge bg-secondary">Cerrado</span>
+                            <?php else: ?>
+                                <span class="badge bg-warning text-dark"><?= htmlspecialchars($ticket->estado) ?></span>
+                            <?php endif; ?>
                         </div>
 
                         <div class="mb-2 d-flex justify-content-between align-items-center">
@@ -117,6 +140,53 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Tarjeta 2: Gestión Operativa (Prioridad y Reasignación - Solo si no está cerrado) -->
+                <?php if ($ticket->estado !== 'Cerrado'): ?>
+                    <div class="card border-0 shadow-sm rounded-4 mb-4">
+                        <div class="card-body p-4">
+                            <h6 class="fw-bold text-dark mb-3"><i class="fa-solid fa-sliders me-2 text-primary"></i>Gestión Operativa</h6>
+                            
+                            <!-- Formulario 1: Cambiar Prioridad -->
+                            <form action="/DeskFlow/agente/cambiarPrioridad" method="POST" class="mb-4">
+                                <input type="hidden" name="id_ticket" value="<?= $ticket->id ?>">
+                                <label class="form-label small fw-semibold text-secondary mb-1">Cambiar Prioridad</label>
+                                <div class="input-group input-group-sm">
+                                    <select name="prioridad" class="form-select" required>
+                                        <option value="Baja" <?= $ticket->prioridad === 'Baja' ? 'selected' : '' ?>>Baja</option>
+                                        <option value="Media" <?= $ticket->prioridad === 'Media' ? 'selected' : '' ?>>Media</option>
+                                        <option value="Alta" <?= $ticket->prioridad === 'Alta' ? 'selected' : '' ?>>Alta</option>
+                                        <option value="Critica" <?= $ticket->prioridad === 'Critica' ? 'selected' : '' ?>>Crítica</option>
+                                    </select>
+                                    <button type="submit" class="btn btn-outline-primary fw-semibold">Actualizar</button>
+                                </div>
+                            </form>
+
+                            <!-- Formulario 2: Reasignar / Derivar a otro Agente -->
+                            <form action="/DeskFlow/agente/reasignarTicket" method="POST">
+                                <input type="hidden" name="id_ticket" value="<?= $ticket->id ?>">
+                                <label class="form-label small fw-semibold text-secondary mb-1">Derivar a otro Agente</label>
+                                <div class="input-group input-group-sm">
+                                    <select name="id_agente" class="form-select" required>
+                                        <option value="" disabled selected>Seleccionar compañero...</option>
+                                        <?php if (!empty($agentes)): ?>
+                                            <?php foreach ($agentes as $ag): ?>
+                                                <?php if ($ag->id != $_SESSION['USER']['id_usuario']): ?>
+                                                    <option value="<?= $ag->id ?>">
+                                                        <?= htmlspecialchars($ag->nombre . ' ' . $ag->apellido) ?>
+                                                    </option>
+                                                <?php endif; ?>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </select>
+                                    <button type="submit" class="btn btn-outline-secondary fw-semibold">Derivar</button>
+                                </div>
+                                <div class="form-text" style="font-size: 0.72rem;">Al derivarlo, el ticket pasará a la bandeja de tu compañero.</div>
+                            </form>
+
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
 
             <!-- Columna Derecha: Hilo de Conversación (Chat) -->
@@ -165,7 +235,7 @@
                             </form>
                         <?php else: ?>
                             <div class="alert alert-secondary text-center small mb-0 py-3" role="alert">
-                                <i class="fa-solid fa-lock me-2"></i>Este ticket se encuentra cerrado. Ya no se pueden enviar nuevos mensajes.
+                                <i class="fa-solid fa-lock me-2"></i>Este ticket se encuentra cerrado. Si necesitás retomar el caso, usá el botón <strong>Reabrir Ticket</strong> arriba a la derecha.
                             </div>
                         <?php endif; ?>
                     </div>
@@ -175,7 +245,7 @@
 
     </div>
 
-    <!-- MODAL DE CONFIRMACIÓN PARA CERRAR EL TICKET -->
+    <!-- MODAL 1: CONFIRMACIÓN PARA CERRAR EL TICKET -->
     <div class="modal fade" id="modalCerrarTicket" tabindex="-1" aria-labelledby="modalCerrarTicketLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4">
@@ -185,7 +255,7 @@
                     </div>
                     <h4 class="fw-bold text-dark mb-2" id="modalCerrarTicketLabel">¿Estás seguro de que querés cerrar el Ticket?</h4>
                     <p class="text-secondary small mb-4">
-                        Una vez cerrado, el ticket pasará a ser de <strong>solo lectura</strong> y no se admitirán nuevos mensajes ni reaperturas.
+                        Una vez cerrado, el ticket pasará a ser de <strong>solo lectura</strong> (Regla RN03).
                     </p>
                     <div class="d-flex justify-content-center gap-2">
                         <button type="button" class="btn btn-secondary btn-sm px-4" data-bs-dismiss="modal">Cancelar</button>
@@ -194,6 +264,32 @@
                         </a>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: CONFIRMACIÓN PARA REABRIR EL TICKET -->
+    <div class="modal fade" id="modalReabrirTicket" tabindex="-1" aria-labelledby="modalReabrirTicketLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <form action="/DeskFlow/agente/reabrirTicket" method="POST">
+                    <input type="hidden" name="id_ticket" value="<?= $ticket->id ?>">
+                    <div class="modal-body text-center p-4">
+                        <div class="mb-3 text-warning">
+                            <i class="fa-solid fa-rotate-left" style="font-size: 3.5rem;"></i>
+                        </div>
+                        <h4 class="fw-bold text-dark mb-2" id="modalReabrirTicketLabel">¿Reabrir este Ticket?</h4>
+                        <p class="text-secondary small mb-4">
+                            El ticket volverá al estado <strong>En Proceso</strong> y se habilitará nuevamente el envío de mensajes en el chat.
+                        </p>
+                        <div class="d-flex justify-content-center gap-2">
+                            <button type="button" class="btn btn-secondary btn-sm px-4" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-warning btn-sm px-4 fw-semibold">
+                                Sí, reabrir ticket
+                            </button>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

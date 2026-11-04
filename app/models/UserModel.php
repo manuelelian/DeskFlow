@@ -194,4 +194,13 @@ class UserModel extends Model {
         
         return DataBase::execute($sql, $params);
     }
+
+    /**
+     * Obtiene TODOS los clientes y agentes (Roles 1 y 2) activos e inactivos.
+     * Excluye a los administradores para proteger la jerarquía en la gestión.
+     */
+    public function listarClientesYAgentes() {
+        $sql = "SELECT * FROM usuarios WHERE id_rol IN (1, 2) ORDER BY id ASC";
+        return DataBase::query($sql);
+    }
 }

@@ -6,6 +6,8 @@ use \Controller;
 use \Response;
 use app\models\TicketsModel;
 use app\models\MensajesModel;
+use app\models\UserModel;
+use app\models\HistorialTicketsModel;
 
 class AgenteController extends Controller
 {
@@ -76,8 +78,15 @@ class AgenteController extends Controller
 
         // Intentamos actualizar el estado y asignar el agente
         if ($ticketsModel->actualizarEstado($id, 'En Proceso', $id_agente)) {
-            // En lugar de redirigir de inmediato, recargamos la bandeja global 
-            // pero pasándole un parámetro GET de éxito para disparar el modal
+            // Registramos la asignación en el historial
+            $historialModel = new HistorialTicketsModel();
+            $historialModel->registrarAccion([
+                'id_ticket'  => $id,
+                'id_usuario' => $id_agente,
+                'accion'     => 'Ticket Tomado',
+                'detalle'    => 'El agente tomó el ticket y pasó a estado En Proceso.'
+            ]);
+
             header("Location: " . self::$path . "agente/global?tomado=exito");
             exit;
         } else {
@@ -165,6 +174,10 @@ class AgenteController extends Controller
         // 3. Obtenemos el hilo de mensajes del ticket
         $mensajes = $mensajesModel->obtenerMensajesPorTicket($id);
 
+        // Obtenemos la lista de agentes activos para poder reasignar el ticket
+        $userModel = new UserModel();
+        $agentes = $userModel->listarPorRol(2);
+        
         // 4. Preparamos los parámetros para la vista
         $parametros_de_vista = [
             "head"     => SiteController::head(),
@@ -173,6 +186,7 @@ class AgenteController extends Controller
             "menu"     => SiteController::menu(),
             "ticket"   => $ticket,
             "mensajes" => $mensajes,
+            "agentes"  => $agentes,
             "error"    => $error
         ];
 
@@ -194,11 +208,122 @@ class AgenteController extends Controller
 
         // Verificamos que el ticket exista, sea de este agente y no esté ya cerrado (RN03)
         if ($ticket && $ticket->id_agente == $id_agente && $ticket->estado !== 'Cerrado') {
-            $ticketsModel->actualizarEstado($id, 'Cerrado', $id_agente);
+            if ($ticketsModel->actualizarEstado($id, 'Cerrado', $id_agente)) {
+                // Registramos el cierre en el historial
+                $historialModel = new HistorialTicketsModel();
+                $historialModel->registrarAccion([
+                    'id_ticket'  => $id,
+                    'id_usuario' => $id_agente,
+                    'accion'     => 'Ticket Cerrado',
+                    'detalle'    => 'El agente dio por resuelto y cerró el ticket.'
+                ]);
+            }
         }
 
         // Redirigimos de vuelta a la vista del ticket para ver el estado actualizado y bloqueado
         header("Location: " . self::$path . "agente/ver/" . $id . "?cerrado=exito");
+        exit;
+    }
+    
+    public function actionCambiarPrioridad()
+    {
+        static::path();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id_ticket = filter_input(INPUT_POST, 'id_ticket', FILTER_VALIDATE_INT);
+            $prioridad = $_POST['prioridad'] ?? '';
+            $id_agente = $_SESSION['USER']['id_usuario'];
+            
+            $prioridades_validas = ['Baja', 'Media', 'Alta', 'Critica'];
+
+            if ($id_ticket && in_array($prioridad, $prioridades_validas)) {
+                $ticketsModel = new TicketsModel();
+                $ticket = $ticketsModel->obtenerPorId($id_ticket);
+
+                // Verificamos que el ticket pertenezca al agente actual
+                if ($ticket && $ticket->id_agente == $id_agente) {
+                    if ($ticketsModel->actualizarPrioridad($id_ticket, $prioridad, $id_agente)) {
+                        $historialModel = new HistorialTicketsModel();
+                        $historialModel->registrarAccion([
+                            'id_ticket'  => $id_ticket,
+                            'id_usuario' => $id_agente,
+                            'accion'     => 'Cambio de Prioridad',
+                            'detalle'    => 'El agente cambió la prioridad del ticket a: ' . $prioridad
+                        ]);
+                    }
+                }
+                header("Location: " . self::$path . "agente/ver/" . $id_ticket . "?cambio=prioridad");
+                exit;
+            }
+        }
+        header("Location: " . self::$path . "agente/personal");
+        exit;
+    }
+
+    public function actionReasignarTicket()
+    {
+        static::path();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id_ticket = filter_input(INPUT_POST, 'id_ticket', FILTER_VALIDATE_INT);
+            $nuevo_agente = filter_input(INPUT_POST, 'id_agente', FILTER_VALIDATE_INT);
+            $id_agente_actual = $_SESSION['USER']['id_usuario'];
+
+            if ($id_ticket && $nuevo_agente && $nuevo_agente != $id_agente_actual) {
+                $ticketsModel = new TicketsModel();
+                $ticket = $ticketsModel->obtenerPorId($id_ticket);
+
+                // Verificamos que el ticket pertenezca al agente que lo quiere derivar
+                if ($ticket && $ticket->id_agente == $id_agente_actual) {
+                    if ($ticketsModel->reasignarAgente($id_ticket, $nuevo_agente, $id_agente_actual)) {
+                        $historialModel = new HistorialTicketsModel();
+                        $historialModel->registrarAccion([
+                            'id_ticket'  => $id_ticket,
+                            'id_usuario' => $id_agente_actual,
+                            'accion'     => 'Ticket Reasignado',
+                            'detalle'    => 'El agente derivó el ticket al agente ID #' . $nuevo_agente
+                        ]);
+                        
+                        // Como ya no es suyo, lo redirigimos a su bandeja personal
+                        header("Location: " . self::$path . "agente/personal?reasignado=exito");
+                        exit;
+                    }
+                }
+            }
+        }
+        header("Location: " . self::$path . "agente/personal");
+        exit;
+    }
+
+    public function actionReabrirTicket()
+    {
+        static::path();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id_ticket = filter_input(INPUT_POST, 'id_ticket', FILTER_VALIDATE_INT);
+            $id_agente = $_SESSION['USER']['id_usuario'];
+
+            if ($id_ticket) {
+                $ticketsModel = new TicketsModel();
+                $ticket = $ticketsModel->obtenerPorId($id_ticket);
+
+                // Validamos que el ticket sea de este agente y esté Cerrado
+                if ($ticket && $ticket->id_agente == $id_agente && $ticket->estado === 'Cerrado') {
+                    if ($ticketsModel->reabrirTicket($id_ticket, $id_agente)) {
+                        $historialModel = new HistorialTicketsModel();
+                        $historialModel->registrarAccion([
+                            'id_ticket'  => $id_ticket,
+                            'id_usuario' => $id_agente,
+                            'accion'     => 'Ticket Reabierto',
+                            'detalle'    => 'El agente reabrió el ticket (vuelve a estado En Proceso).'
+                        ]);
+                    }
+                }
+                header("Location: " . self::$path . "agente/ver/" . $id_ticket . "?cambio=reabierto");
+                exit;
+            }
+        }
+        header("Location: " . self::$path . "agente/personal");
         exit;
     }
 }

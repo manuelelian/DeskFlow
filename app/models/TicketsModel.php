@@ -169,4 +169,53 @@ class TicketsModel extends Model {
         return DataBase::execute($sql, $params);
     }
     
+    /**
+     * Actualiza la prioridad de un ticket
+     */
+    public function actualizarPrioridad($id_ticket, $prioridad, $modificado_por) {
+        $sql = "UPDATE tickets 
+                SET prioridad = :prioridad, modificado_por = :modificado_por 
+                WHERE id = :id";
+        
+        $params = [
+            ':prioridad'      => $prioridad,
+            ':modificado_por' => $modificado_por,
+            ':id'             => $id_ticket
+        ];
+        
+        return DataBase::execute($sql, $params);
+    }
+
+    /**
+     * Reasigna un ticket a otro agente
+     */
+    public function reasignarAgente($id_ticket, $id_agente, $modificado_por) {
+        $sql = "UPDATE tickets 
+                SET id_agente = :id_agente, modificado_por = :modificado_por 
+                WHERE id = :id";
+        
+        $params = [
+            ':id_agente'      => $id_agente,
+            ':modificado_por' => $modificado_por,
+            ':id'             => $id_ticket
+        ];
+        
+        return DataBase::execute($sql, $params);
+    }
+
+    /**
+     * Reabre un ticket cerrado por el agente, devolviéndolo a 'En Proceso' y limpiando fecha_cierre
+     */
+    public function reabrirTicket($id_ticket, $modificado_por) {
+        $sql = "UPDATE tickets 
+                SET estado = 'En Proceso', fecha_cierre = NULL, modificado_por = :modificado_por 
+                WHERE id = :id";
+        
+        $params = [
+            ':modificado_por' => $modificado_por,
+            ':id'             => $id_ticket
+        ];
+        
+        return DataBase::execute($sql, $params);
+    }
 }

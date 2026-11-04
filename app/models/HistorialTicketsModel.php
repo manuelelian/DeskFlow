@@ -18,10 +18,10 @@ class HistorialTicketsModel extends Model {
                 VALUES (:id_ticket, :id_usuario, :accion, :detalle)";
         
         $params = [
-            ':id_ticket'  => $datos['id_ticket'],
-            ':id_usuario' => $datos['id_usuario'],
-            ':accion'     => $datos['accion'],
-            ':detalle'    => $datos['detalle']
+            'id_ticket'  => $datos['id_ticket'],
+            'id_usuario' => $datos['id_usuario'],
+            'accion'     => $datos['accion'],
+            'detalle'    => $datos['detalle']
         ];
 
         return DataBase::execute($sql, $params);
