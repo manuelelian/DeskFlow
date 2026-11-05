@@ -4,6 +4,9 @@ namespace app\controllers;
 
 use app\controllers\UserController; // Del profe
 use app\models\UserModel;
+use app\models\RecuperacionModel;
+require_once APP_PATH . "helpers/BrevoHelper.php";
+use app\helpers\BrevoHelper;
 use \Controller;
 use \Response;
 use \DataBase;
@@ -162,5 +165,143 @@ class AccountController extends Controller
         $ruta = self::$path.'account/login/';
         $_SESSION['SESSION']['STATUS'] = false;
         header("Location: $ruta");
+    }
+
+    // =========================================================================
+    // FLUJO DE RECUPERACIÓN DE CONTRASEÑA (RecuperacionModel + Brevo)
+    // =========================================================================
+
+    public function actionRecuperar_contrasena()
+    {
+        if (self::$sessionStatus === "Online") {
+            static::path();
+            $ruta = self::$path . 'home';
+            header("Location: $ruta");
+            exit;
+        }
+
+        static::path();
+
+        $error = '';
+        $exito = '';
+        $email = '';
+        $link_directo = '';
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $email = trim($_POST['email'] ?? '');
+
+            if (empty($email)) {
+                $error = "Por favor, ingresá tu correo electrónico.";
+            } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $error = "El formato del correo electrónico no es válido.";
+            } else {
+                $userModel = new UserModel();
+                $usuario = $userModel->buscarPorEmail($email);
+
+                // Mensaje genérico por seguridad para prevenir enumeración de usuarios
+                $exito = "Si el correo coincide con una cuenta activa, te enviamos las instrucciones para restablecer tu contraseña.";
+
+                if ($usuario) {
+                    // Generamos un token criptográficamente seguro
+                    $token = bin2hex(random_bytes(32));
+                    // El token expira en 1 hora
+                    $fecha_expiracion = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+                    $recuperacionModel = new RecuperacionModel();
+                    // Eliminamos tokens previos no usados para este usuario
+                    $recuperacionModel->eliminarTokensPorUsuario($usuario->id);
+                    // Guardamos el nuevo token
+                    $recuperacionModel->guardarToken($usuario->id, $token, $fecha_expiracion);
+
+                    // Construimos la URL completa para el correo
+                    $protocolo = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "http://";
+                    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                    $linkRecuperacion = $protocolo . $host . self::$path . 'account/restablecer_contrasena?token=' . $token;
+
+                    // Enviamos por Brevo
+                    $resultadoBrevo = BrevoHelper::enviarCorreoRecuperacion(
+                        $usuario->email,
+                        $usuario->nombre . ' ' . $usuario->apellido,
+                        $linkRecuperacion
+                    );
+
+                    // Si Brevo no está configurado (modo desarrollo local), facilitamos el link en pantalla
+                    if (!$resultadoBrevo['exito']) {
+                        $link_directo = $linkRecuperacion;
+                    }
+                }
+            }
+        }
+
+        $parametros_de_vista = [
+            "error"        => $error,
+            "exito"        => $exito,
+            "email"        => $email,
+            "link_directo" => $link_directo
+        ];
+
+        Response::render($this->viewDir(__NAMESPACE__), 'recuperar_contrasena', $parametros_de_vista);
+    }
+
+    public function actionRestablecer_contrasena()
+    {
+        if (self::$sessionStatus === "Online") {
+            static::path();
+            $ruta = self::$path . 'home';
+            header("Location: $ruta");
+            exit;
+        }
+
+        static::path();
+
+        $token = $_GET['token'] ?? $_POST['token'] ?? '';
+        $error = '';
+
+        if (empty($token)) {
+            header("Location: " . self::$path . "account/login");
+            exit;
+        }
+
+        $recuperacionModel = new RecuperacionModel();
+        $registroToken = $recuperacionModel->obtenerPorToken($token);
+
+        if (!$registroToken) {
+            $error = "El enlace de recuperación es inválido o ha expirado. Por favor, solicitá uno nuevo.";
+        } else {
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $password = $_POST['password'] ?? '';
+                $confirm_password = $_POST['confirm_password'] ?? '';
+
+                if (empty($password) || empty($confirm_password)) {
+                    $error = "Por favor, completá todos los campos.";
+                } elseif (strlen($password) < 8 || !preg_match('/[A-Z]/', $password) || !preg_match('/[0-9]/', $password) || !preg_match('/[\W_]/', $password)) {
+                    $error = "La contraseña debe tener al menos 8 caracteres, una mayúscula, un número y un caracter especial.";
+                } elseif ($password !== $confirm_password) {
+                    $error = "Las contraseñas no coinciden.";
+                } else {
+                    $userModel = new UserModel();
+                    $passwordHasheada = password_hash($password, PASSWORD_DEFAULT);
+
+                    // Actualizamos la contraseña del usuario
+                    if ($userModel->actualizarPassword($registroToken->id_usuario, $passwordHasheada)) {
+                        // Eliminamos el token de un solo uso
+                        $recuperacionModel->eliminarTokensPorUsuario($registroToken->id_usuario);
+
+                        // Redireccionamos al login con confirmación
+                        header("Location: " . self::$path . "account/login");
+                        exit;
+                    } else {
+                        $error = "Ocurrió un error al intentar actualizar la contraseña. Intentá nuevamente.";
+                    }
+                }
+            }
+        }
+
+        $parametros_de_vista = [
+            "token" => $token,
+            "error" => $error
+        ];
+
+        Response::render($this->viewDir(__NAMESPACE__), 'restablecer_contrasena', $parametros_de_vista);
     }
 }

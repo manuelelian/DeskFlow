@@ -209,6 +209,35 @@
                                     </div>
                                     <div class="message-bubble <?= $esMio ? 'bg-primary text-white' : 'bg-white border text-dark shadow-sm' ?>">
                                         <?= nl2br(htmlspecialchars($msj->contenido)) ?>
+
+                                        <?php if (!empty($archivosPorMensaje[$msj->id])): ?>
+                                            <div class="mt-2 pt-2 border-top <?= $esMio ? 'border-white-50' : 'border-secondary-subtle' ?>">
+                                                <span class="small fw-semibold d-block mb-1" style="font-size: 0.72rem;">
+                                                    <i class="fa-solid fa-paperclip me-1"></i>Adjuntos:
+                                                </span>
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    <?php foreach ($archivosPorMensaje[$msj->id] as $adj): ?>
+                                                        <?php
+                                                            $esImagen = strpos($adj->tipo_mime, 'image/') === 0;
+                                                            $rutaWeb = '/DeskFlow/' . htmlspecialchars($adj->ruta_archivo);
+                                                        ?>
+                                                        <?php if ($esImagen): ?>
+                                                            <a href="<?= $rutaWeb ?>" target="_blank" class="d-inline-block text-decoration-none">
+                                                                <img src="<?= $rutaWeb ?>" alt="<?= htmlspecialchars($adj->nombre_original) ?>"
+                                                                     class="img-thumbnail rounded-3" style="max-height: 80px; max-width: 120px; object-fit: cover;">
+                                                            </a>
+                                                        <?php else: ?>
+                                                            <a href="<?= $rutaWeb ?>" target="_blank" download="<?= htmlspecialchars($adj->nombre_original) ?>"
+                                                               class="btn btn-sm <?= $esMio ? 'btn-light text-primary' : 'btn-outline-primary' ?> d-flex align-items-center gap-1 py-1 px-2" style="font-size: 0.75rem;">
+                                                                <i class="fa-solid fa-file-arrow-down"></i>
+                                                                <span class="text-truncate" style="max-width: 150px;"><?= htmlspecialchars($adj->nombre_original) ?></span>
+                                                            </a>
+                                                        <?php endif; ?>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -222,10 +251,15 @@
                     <!-- Formulario de Respuesta (Solo si el ticket NO está cerrado - RN03) -->
                     <div class="card-footer bg-white p-4 border-0">
                         <?php if ($ticket->estado !== 'Cerrado'): ?>
-                            <form action="" method="POST">
+                            <form action="" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3">
                                     <label for="contenido" class="form-label small fw-bold text-secondary">Escribir respuesta al cliente:</label>
                                     <textarea class="form-control" name="contenido" rows="3" placeholder="Escribí tu mensaje aquí..." required></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="adjunto" class="form-label small fw-bold text-secondary">Adjuntar archivo (opcional):</label>
+                                    <input type="file" class="form-control form-control-sm" id="adjunto" name="adjunto" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.txt">
+                                    <div class="form-text" style="font-size: 0.72rem;">Permitidos: JPG, PNG, PDF, DOC, TXT (Máx: 5MB)</div>
                                 </div>
                                 <div class="text-end">
                                     <button type="submit" class="btn btn-primary fw-semibold px-4 shadow-sm">

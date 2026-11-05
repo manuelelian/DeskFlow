@@ -8,6 +8,7 @@ use app\models\TicketsModel;
 use app\models\MensajesModel;
 use app\models\UserModel;
 use app\models\HistorialTicketsModel;
+use app\models\ArchivosModel;
 
 class AgenteController extends Controller
 {
@@ -159,9 +160,55 @@ class AgenteController extends Controller
                     ];
 
                     if ($mensajesModel->insertarMensaje($nuevoMensaje)) {
-                        // Patrón PRG: Recargamos para limpiar el POST y evitar envíos duplicados
-                        header("Location: " . self::$path . "agente/ver/" . $id);
-                        exit;
+                        // Obtenemos el ID del mensaje recién insertado usando PDO
+                        $id_mensaje = \DataBase::connection()->lastInsertId();
+
+                        // Procesamos el archivo adjunto si fue enviado
+                        if (isset($_FILES['adjunto']) && $_FILES['adjunto']['error'] === UPLOAD_ERR_OK) {
+                            $archivo = $_FILES['adjunto'];
+                            $tamanoMaximo = 5 * 1024 * 1024; // 5 MB
+
+                            $mimesPermitidos = [
+                                'image/jpeg', 'image/png', 'image/gif', 'application/pdf',
+                                'text/plain', 'application/msword',
+                                'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                            ];
+
+                            $extensionesPermitidas = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'txt', 'doc', 'docx'];
+                            $ext = strtolower(pathinfo($archivo['name'], PATHINFO_EXTENSION));
+                            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                            $mimeReal = finfo_file($finfo, $archivo['tmp_name']);
+                            finfo_close($finfo);
+
+                            if ($archivo['size'] > $tamanoMaximo) {
+                                $error = "El archivo excede el tamaño máximo permitido de 5MB.";
+                            } elseif (!in_array($ext, $extensionesPermitidas) || !in_array($mimeReal, $mimesPermitidos)) {
+                                $error = "Tipo de archivo no permitido. Solo se permiten imágenes, PDF, DOC o TXT.";
+                            } else {
+                                $nombreGuardado = uniqid('adjunto_', true) . '.' . $ext;
+                                $directorioDestino = 'public/uploads/';
+                                $rutaCompleta = $directorioDestino . $nombreGuardado;
+
+                                if (move_uploaded_file($archivo['tmp_name'], $rutaCompleta)) {
+                                    $archivosModel = new ArchivosModel();
+                                    $archivosModel->guardarArchivo([
+                                        'id_ticket'       => $id,
+                                        'id_mensaje'      => $id_mensaje,
+                                        'nombre_original' => $archivo['name'],
+                                        'ruta_archivo'    => $rutaCompleta,
+                                        'tipo_mime'       => $mimeReal,
+                                        'tamano_bytes'    => $archivo['size'],
+                                        'creado_por'      => $id_agente
+                                    ]);
+                                }
+                            }
+                        }
+
+                        if (empty($error)) {
+                            // Patrón PRG: Recargamos para limpiar el POST y evitar envíos duplicados
+                            header("Location: " . self::$path . "agente/ver/" . $id);
+                            exit;
+                        }
                     } else {
                         $error = "No se pudo enviar la respuesta. Intentá nuevamente.";
                     }
@@ -171,8 +218,20 @@ class AgenteController extends Controller
             }
         }
 
-        // 3. Obtenemos el hilo de mensajes del ticket
+        // 3. Obtenemos el hilo de mensajes del ticket y los archivos adjuntos
         $mensajes = $mensajesModel->obtenerMensajesPorTicket($id);
+        $archivosModel = new ArchivosModel();
+        $archivos = $archivosModel->obtenerArchivosPorTicket($id);
+
+        $archivosPorMensaje = [];
+        $archivosTicket = [];
+        foreach ($archivos as $archivo) {
+            if (!empty($archivo->id_mensaje)) {
+                $archivosPorMensaje[$archivo->id_mensaje][] = $archivo;
+            } else {
+                $archivosTicket[] = $archivo;
+            }
+        }
 
         // Obtenemos la lista de agentes activos para poder reasignar el ticket
         $userModel = new UserModel();
@@ -180,14 +239,16 @@ class AgenteController extends Controller
         
         // 4. Preparamos los parámetros para la vista
         $parametros_de_vista = [
-            "head"     => SiteController::head(),
-            "header"   => SiteController::header(),
-            "topbar"   => SiteController::topbar(),
-            "menu"     => SiteController::menu(),
-            "ticket"   => $ticket,
-            "mensajes" => $mensajes,
-            "agentes"  => $agentes,
-            "error"    => $error
+            "head"                => SiteController::head(),
+            "header"              => SiteController::header(),
+            "topbar"              => SiteController::topbar(),
+            "menu"                => SiteController::menu(),
+            "ticket"              => $ticket,
+            "mensajes"            => $mensajes,
+            "archivosPorMensaje"  => $archivosPorMensaje,
+            "archivosTicket"      => $archivosTicket,
+            "agentes"             => $agentes,
+            "error"               => $error
         ];
 
         Response::render($this->viewDir(__NAMESPACE__), 'ver', $parametros_de_vista);

@@ -101,6 +101,35 @@
                                                 <span><?= date('d/m/Y H:i', strtotime($msg->fecha_envio)) ?></span>
                                             </div>
                                             <p class="mb-0 text-break"><?= nl2br(htmlspecialchars($msg->contenido)) ?></p>
+
+                                            <?php if (!empty($archivosPorMensaje[$msg->id])): ?>
+                                                <div class="mt-2 pt-2 border-top <?= $esMio ? 'border-white-50' : 'border-secondary-subtle' ?>">
+                                                    <span class="small fw-semibold d-block mb-1" style="font-size: 0.75rem;">
+                                                        <i class="fa-solid fa-paperclip me-1"></i>Adjuntos:
+                                                    </span>
+                                                    <div class="d-flex flex-wrap gap-2">
+                                                        <?php foreach ($archivosPorMensaje[$msg->id] as $adj): ?>
+                                                            <?php
+                                                                $esImagen = strpos($adj->tipo_mime, 'image/') === 0;
+                                                                $rutaWeb = '/DeskFlow/' . htmlspecialchars($adj->ruta_archivo);
+                                                            ?>
+                                                            <?php if ($esImagen): ?>
+                                                                <a href="<?= $rutaWeb ?>" target="_blank" class="d-inline-block text-decoration-none">
+                                                                    <img src="<?= $rutaWeb ?>" alt="<?= htmlspecialchars($adj->nombre_original) ?>"
+                                                                         class="img-thumbnail rounded-3" style="max-height: 80px; max-width: 120px; object-fit: cover;">
+                                                                </a>
+                                                            <?php else: ?>
+                                                                <a href="<?= $rutaWeb ?>" target="_blank" download="<?= htmlspecialchars($adj->nombre_original) ?>"
+                                                                   class="btn btn-sm <?= $esMio ? 'btn-light text-primary' : 'btn-outline-primary' ?> d-flex align-items-center gap-1 py-1 px-2" style="font-size: 0.75rem;">
+                                                                    <i class="fa-solid fa-file-arrow-down"></i>
+                                                                    <span class="text-truncate" style="max-width: 150px;"><?= htmlspecialchars($adj->nombre_original) ?></span>
+                                                                </a>
+                                                            <?php endif; ?>
+                                                        <?php endforeach; ?>
+                                                    </div>
+                                                </div>
+                                            <?php endif; ?>
+
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
@@ -122,11 +151,16 @@
                 <?php else: ?>
                     <div class="card border-0 shadow-sm rounded-4">
                         <div class="card-body p-4">
-                            <form action="/DeskFlow/cliente/ver/<?= $ticket->id ?>" method="POST">
+                            <form action="/DeskFlow/cliente/ver/<?= $ticket->id ?>" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3">
                                     <label for="contenido" class="form-label small fw-bold text-secondary">RESPONDER AL TICKET</label>
                                     <textarea class="form-control bg-light" id="contenido" name="contenido" rows="3" 
                                               placeholder="Escribí tu mensaje o aclaración aquí..." required></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="adjunto" class="form-label small fw-bold text-secondary">ADJUNTAR ARCHIVO (OPCIONAL)</label>
+                                    <input type="file" class="form-control form-control-sm" id="adjunto" name="adjunto" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.txt">
+                                    <div class="form-text" style="font-size: 0.75rem;">Permitidos: JPG, PNG, PDF, DOC, TXT (Máx: 5MB)</div>
                                 </div>
                                 <div class="d-flex justify-content-end">
                                     <button type="submit" class="btn btn-primary fw-semibold px-4">

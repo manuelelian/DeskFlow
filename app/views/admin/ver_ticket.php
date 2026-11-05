@@ -171,6 +171,35 @@
                                         <div class="text-secondary small">
                                             <?= nl2br(htmlspecialchars($msj->contenido)) ?>
                                         </div>
+
+                                        <?php if (!empty($archivosPorMensaje[$msj->id])): ?>
+                                            <div class="mt-2 pt-2 border-top border-secondary-subtle">
+                                                <span class="small fw-semibold text-muted d-block mb-1" style="font-size: 0.72rem;">
+                                                    <i class="fa-solid fa-paperclip me-1"></i>Adjuntos:
+                                                </span>
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    <?php foreach ($archivosPorMensaje[$msj->id] as $adj): ?>
+                                                        <?php
+                                                            $esImagen = strpos($adj->tipo_mime, 'image/') === 0;
+                                                            $rutaWeb = '/DeskFlow/' . htmlspecialchars($adj->ruta_archivo);
+                                                        ?>
+                                                        <?php if ($esImagen): ?>
+                                                            <a href="<?= $rutaWeb ?>" target="_blank" class="d-inline-block text-decoration-none">
+                                                                <img src="<?= $rutaWeb ?>" alt="<?= htmlspecialchars($adj->nombre_original) ?>"
+                                                                     class="img-thumbnail rounded-3" style="max-height: 80px; max-width: 120px; object-fit: cover;">
+                                                            </a>
+                                                        <?php else: ?>
+                                                            <a href="<?= $rutaWeb ?>" target="_blank" download="<?= htmlspecialchars($adj->nombre_original) ?>"
+                                                               class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 py-1 px-2" style="font-size: 0.75rem;">
+                                                                <i class="fa-solid fa-file-arrow-down"></i>
+                                                                <span class="text-truncate" style="max-width: 150px;"><?= htmlspecialchars($adj->nombre_original) ?></span>
+                                                            </a>
+                                                        <?php endif; ?>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+
                                     </div>
                                 </div>
                             <?php endforeach; ?>
