@@ -9,6 +9,7 @@ use app\models\CategoriasModel;
 use app\models\TicketsModel;
 use app\models\MensajesModel;
 use app\models\HistorialTicketsModel;
+use app\models\ArchivosModel;
 
 class AdminController extends Controller
 {
@@ -311,18 +312,32 @@ class AdminController extends Controller
             exit;
         }
 
-        // 2. Traemos todos los mensajes activos de ese ticket
+        // 2. Traemos todos los mensajes activos de ese ticket y los archivos adjuntos
         $mensajesModel = new MensajesModel();
         $mensajes = $mensajesModel->obtenerMensajesPorTicket($id);
+        $archivosModel = new ArchivosModel();
+        $archivos = $archivosModel->obtenerArchivosPorTicket($id);
+
+        $archivosPorMensaje = [];
+        $archivosTicket = [];
+        foreach ($archivos as $archivo) {
+            if (!empty($archivo->id_mensaje)) {
+                $archivosPorMensaje[$archivo->id_mensaje][] = $archivo;
+            } else {
+                $archivosTicket[] = $archivo;
+            }
+        }
 
         // 3. Preparamos los parámetros para la vista
         $parametros_de_vista = [
-            "head"     => SiteController::head(),
-            "header"   => SiteController::header(),
-            "topbar"   => SiteController::topbar(),
-            "menu"     => SiteController::menu(),
-            "ticket"   => $ticket,
-            "mensajes" => $mensajes
+            "head"                => SiteController::head(),
+            "header"              => SiteController::header(),
+            "topbar"              => SiteController::topbar(),
+            "menu"                => SiteController::menu(),
+            "ticket"              => $ticket,
+            "mensajes"            => $mensajes,
+            "archivosPorMensaje"  => $archivosPorMensaje,
+            "archivosTicket"      => $archivosTicket
         ];
 
         // 4. Renderizamos la vista 'ver_ticket' dentro de app/views/admin/
